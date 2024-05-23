@@ -1,0 +1,117 @@
+
+#include <SPI.h>
+#include <MFRC522.h>
+ 
+#define SS_PIN 5
+#define RST_PIN 0
+MFRC522 mfrc522(SS_PIN, RST_PIN);   // Create MFRC522 instance.
+
+String allowedTags[] = {
+"53 F0 14 AC", // Tag 1
+"5A E1 0D B0", // Tag 2
+"7B D7 DF 52", // Tag 3
+};
+
+// List of names to associate with the matching tag IDs
+String tagName[] = {
+"A", // Tag 1
+"B", // Tag 2
+"Alongkorn", // Tag 3
+};
+
+#define relay 4
+#define buzzer 2
+
+#include <TridentTD_LineNotify.h>
+
+#define SSID        "Salty"      // บรรทัดที่ 11 ให้ใส่ ชื่อ Wifi ที่จะเชื่อมต่อ
+#define PASSWORD    "SaltySanss"     // บรรทัดที่ 12 ใส่ รหัส Wifi
+#define LINE_TOKEN  "nyNazzDiHbckVuzkIw8CQRcVeDE400oClkQdyfuG5lr"   // บรรทัดที่ 13 ใส่ รหัส TOKEN ที่ได้มาจากข้างบน
+
+void setup() 
+{
+  Serial.begin(9600);   // Initiate a serial communication
+  SPI.begin();      // Initiate  SPI bus
+  mfrc522.PCD_Init();   // Initiate MFRC522
+  Serial.println("Approximate your card to the reader...");
+  Serial.println();
+  pinMode(relay,OUTPUT);
+  pinMode(buzzer,OUTPUT);
+  digitalWrite(buzzer,LOW);
+  digitalWrite(relay,LOW);
+
+  WiFi.begin(SSID, PASSWORD);
+  Serial.printf("WiFi connecting to %s\n",  SSID);
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(400);
+  }
+  Serial.printf("\nWiFi connected\nIP : ");
+  Serial.println(WiFi.localIP());
+
+  // กำหนด Line Token
+  LINE.setToken(LINE_TOKEN);
+
+}
+void loop() 
+{
+  // Look for new cards
+  if ( ! mfrc522.PICC_IsNewCardPresent()) 
+  {
+    return;
+  }
+  // Select one of the cards
+  if ( ! mfrc522.PICC_ReadCardSerial()) 
+  {
+    return;
+  }
+  //Show UID on serial monitor
+  Serial.print("UID tag :");
+  String content= "";
+  byte letter;
+  for (byte i = 0; i < mfrc522.uid.size; i++) 
+  {
+     Serial.print(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " ");
+     Serial.print(mfrc522.uid.uidByte[i], HEX);
+     content.concat(String(mfrc522.uid.uidByte[i] < 0x10 ? " 0" : " "));
+     content.concat(String(mfrc522.uid.uidByte[i], HEX));
+  }
+  Serial.println();
+  Serial.print("Message : ");
+  content.toUpperCase();
+  Serial.println(content.substring(1));
+  String tag = content.substring(1);
+
+  for (int i=0; i< sizeof(allowedTags); i ++){
+    if (tag==allowedTags[i]){
+     Serial.println("open");
+     Serial.println(tagName[i]);
+
+     buss();
+     OpenDoor();
+
+     LINE.notify(tagName[i]+" open the locker");
+     
+     mfrc522.PICC_HaltA();
+     mfrc522.PCD_StopCrypto1();
+     return;
+    }
+    else{
+     mfrc522.PICC_HaltA();
+     mfrc522.PCD_StopCrypto1();
+      }
+  }
+
+}
+
+void buss(){
+  digitalWrite(buzzer,HIGH);
+  delay(100);
+  digitalWrite(buzzer,LOW);
+}
+
+void OpenDoor(){
+  digitalWrite(relay,HIGH);
+  delay(500);
+  digitalWrite(relay,LOW);
+}
